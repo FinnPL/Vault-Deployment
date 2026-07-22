@@ -32,9 +32,10 @@ Store the **recovery keys** and **initial root token** securely.
 
 ### 2. Enable audit logging
 ```bash
-export VAULT_ADDR=https://vault.cloud.lippok.dev
-vault login <root-token>
-vault audit enable file file_path=/vault/file/audit.log
+cd /opt/vault
+sudo docker compose exec vault vault login <root-token>
+
+sudo docker compose exec vault vault audit enable file file_path=/vault/file/audit.log
 ```
 
 ### 3. Backups
@@ -43,12 +44,14 @@ The `vault-snapshot.timer` runs daily and uploads a raft snapshot to the
 
 ```bash
 # create a scoped backup policy + a periodic token, then store it on the host
-vault policy write backup - <<'EOF'
+cd /opt/vault
+sudo docker compose exec -T vault vault policy write backup - <<'EOF'
 path "sys/storage/raft/snapshot" { capabilities = ["read"] }
 EOF
-vault token create -policy=backup -period=768h -field=token \
-  | sudo tee /etc/vault-backup/token >/dev/null
-sudo chmod 600 /etc/vault-backup/token
+
+sudo docker compose exec -T vault \
+  vault token create -policy=backup -period=768h -field=token \
+  | sudo install -m600 /dev/stdin /etc/vault-backup/token
 
 # verify
 sudo systemctl start vault-snapshot.service
@@ -60,7 +63,10 @@ into a node sealed by the **same** KMS key.
 
 ### 4. Root token hygiene
 After creating a real auth method + policies, revoke the root token:
-`vault token revoke <root-token>` (regenerate later with `operator generate-root`).
+```bash
+cd /opt/vault
+sudo docker compose exec vault vault token revoke -self
+```
 
 ### 5. Upgrades
 Renovate opens PRs bumping the pinned image tags in `app/docker-compose.yml`.
