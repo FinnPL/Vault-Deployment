@@ -1,0 +1,20 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard"],
+  "enabledManagers": ["docker-compose", "github-actions", "terraform"],
+  "packageRules": [
+    {
+      "description": "Group Vault + Caddy image bumps; auto-merge patch/minor",
+      "matchManagers": ["docker-compose"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Vault major upgrades need manual review (upgrade notes)",
+      "matchManagers": ["docker-compose"],
+      "matchPackageNames": ["hashicorp/vault"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ]
+}
