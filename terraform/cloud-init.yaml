@@ -1,0 +1,49 @@
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - fail2ban
+  - unzip
+
+write_files:
+  # Key-only SSH.
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      KbdInteractiveAuthentication no
+
+  # fail2ban for SSH
+  - path: /etc/fail2ban/jail.d/sshd.local
+    permissions: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 4
+      bantime = 1h
+
+runcmd:
+  # Docker Engine + compose plugin
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ubuntu
+  - systemctl enable --now docker
+
+  # OCI CLI
+  - >
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"
+    --accept-all-defaults --install-dir /opt/oci-cli --exec-dir /usr/local/bin --script-dir /usr/local/bin
+
+  # App root for Ansible
+  - install -d -o ubuntu -g ubuntu -m 0750 /opt/vault
+  - install -d -o ubuntu -g ubuntu -m 0750 /opt/vault/data
+  - install -d -o ubuntu -g ubuntu -m 0750 /opt/vault/config
+  - install -d -o root -g root -m 0700 /etc/vault-backup
+
+  - systemctl restart ssh
+  - systemctl enable --now fail2ban
+
+final_message: "cloud-init complete after $UPTIME seconds"
