@@ -21,6 +21,11 @@ cd /opt/vault
 docker compose exec -T \
   -e VAULT_ADDR="http://127.0.0.1:8200" \
   -e VAULT_TOKEN="$(cat "$TOKEN_FILE")" \
+  vault vault token renew -self >/dev/null
+
+docker compose exec -T \
+  -e VAULT_ADDR="http://127.0.0.1:8200" \
+  -e VAULT_TOKEN="$(cat "$TOKEN_FILE")" \
   vault vault operator raft snapshot save "$SNAP_CONTAINER"
 
 oci os object put \

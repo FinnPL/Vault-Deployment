@@ -11,8 +11,16 @@ packages:
   - unzip
   - python3-venv
   - python3-pip
+  - unattended-upgrades
 
 write_files:
+  # Daily security patches
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
   # Key-only SSH.
   - path: /etc/ssh/sshd_config.d/99-hardening.conf
     permissions: "0644"

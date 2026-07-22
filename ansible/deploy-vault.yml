@@ -94,6 +94,14 @@
         group: root
         mode: "0750"
 
+    - name: Install audit log rotation
+      ansible.builtin.template:
+        src: vault-audit-logrotate.j2
+        dest: /etc/logrotate.d/vault-audit
+        owner: root
+        group: root
+        mode: "0644"
+
     - name: Install snapshot service + timer
       ansible.builtin.template:
         src: "{{ item }}"
