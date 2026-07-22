@@ -11,7 +11,20 @@
 
     - name: Wait for cloud-init to finish (removes the OS-layer/app-layer race)
       ansible.builtin.command: cloud-init status --wait
+      register: cloudinit
       changed_when: false
+      failed_when: cloudinit.rc == 1 or 'done' not in cloudinit.stdout
+
+    - name: Show cloud-init detail when it finished degraded
+      ansible.builtin.command: cloud-init status --long
+      register: cloudinit_long
+      changed_when: false
+      when: cloudinit.rc == 2
+
+    - name: Report cloud-init degradation (non-fatal)
+      ansible.builtin.debug:
+        var: cloudinit_long.stdout_lines
+      when: cloudinit.rc == 2
 
     - name: Gather facts now that the host is ready
       ansible.builtin.setup:
