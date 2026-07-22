@@ -9,6 +9,8 @@ packages:
   - gnupg
   - fail2ban
   - unzip
+  - python3-venv
+  - python3-pip
 
 write_files:
   # Key-only SSH.
@@ -37,7 +39,7 @@ runcmd:
   # OCI CLI
   - >
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"
-    --accept-all-defaults --install-dir /opt/oci-cli --exec-dir /usr/local/bin --script-dir /usr/local/bin
+    -- --accept-all-defaults --install-dir /opt/oci-cli --exec-dir /usr/local/bin --script-dir /usr/local/bin
 
   # App root for Ansible
   - install -d -o ubuntu -g ubuntu -m 0750 /opt/vault
