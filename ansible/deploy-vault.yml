@@ -43,9 +43,6 @@
         - { path: /opt/vault/config, mode: "0755" }
 
     - name: Ensure raft data dir is owned by the in-container vault uid (100)
-      # Vault runs as uid 100 inside the container and must be able to write raft
-      # data + the audit log here. Chowning this to the host ubuntu user (as the
-      # dir loop above does for config) would break the container's write access.
       ansible.builtin.file:
         path: /opt/vault/data
         state: directory
