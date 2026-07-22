@@ -1,0 +1,20 @@
+{{ domain }} {
+	encode zstd gzip
+
+	reverse_proxy vault:8200 {
+		# Vault streams responses; disable buffering for long-poll endpoints.
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

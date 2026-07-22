@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Takes a raft snapshot and uploads it to Object Storage using the instance principal.
+
+set -euo pipefail
+
+TOKEN_FILE=/etc/vault-backup/token
+if [[ ! -s "$TOKEN_FILE" ]]; then
+  echo "no token at $TOKEN_FILE yet, skipping snapshot" >&2
+  exit 0
+fi
+
+TS="$(date -u +%Y%m%dT%H%M%SZ)"
+SNAP_CONTAINER="/vault/file/vault-${TS}.snap"
+SNAP_HOST="/opt/vault/data/vault-${TS}.snap"
+
+cleanup() { rm -f "$SNAP_HOST"; }
+trap cleanup EXIT
+
+cd /opt/vault
+
+docker compose exec -T \
+  -e VAULT_ADDR="http://127.0.0.1:8200" \
+  -e VAULT_TOKEN="$(cat "$TOKEN_FILE")" \
+  vault vault operator raft snapshot save "$SNAP_CONTAINER"
+
+oci os object put \
+  --auth instance_principal \
+  --namespace "{{ objectstorage_namespace }}" \
+  --bucket-name "{{ backup_bucket }}" \
+  --name "raft/vault-${TS}.snap" \
+  --file "$SNAP_HOST" \
+  --force
+
+echo "uploaded raft/vault-${TS}.snap to {{ backup_bucket }}"

@@ -1,0 +1,8 @@
+[Unit]
+Description=Vault raft snapshot to OCI Object Storage
+After=vault.service
+Requires=vault.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vault-snapshot.sh

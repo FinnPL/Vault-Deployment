@@ -1,0 +1,26 @@
+# Rendered by Ansible from Terraform outputs. Do not edit on the host.
+ui = true
+
+storage "raft" {
+  path    = "/vault/file"
+  node_id = "vault-1"
+}
+
+listener "tcp" {
+  address                            = "0.0.0.0:8200"
+  tls_disable                        = true
+  x_forwarded_for_authorized_addrs   = "0.0.0.0/0"
+  x_forwarded_for_reject_not_present = false
+}
+
+seal "ocikms" {
+  key_id              = "{{ kms_key_id }}"
+  crypto_endpoint     = "{{ kms_crypto_endpoint }}"
+  management_endpoint = "{{ kms_management_endpoint }}"
+  auth_type_api_key   = false
+}
+
+api_addr     = "https://{{ domain }}"
+cluster_addr = "http://127.0.0.1:8201"
+
+disable_mlock = false

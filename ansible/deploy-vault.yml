@@ -1,0 +1,112 @@
+---
+- name: Deploy Vault
+  hosts: vault
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Wait for SSH to come up
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Wait for cloud-init to finish (removes the OS-layer/app-layer race)
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+
+    - name: Gather facts now that the host is ready
+      ansible.builtin.setup:
+
+  tasks:
+    - name: Ensure app directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0750"
+      loop:
+        - /opt/vault
+        - /opt/vault/config
+        - /opt/vault/data
+
+    - name: Copy docker-compose.yml
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../app/docker-compose.yml"
+        dest: /opt/vault/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+        mode: "0640"
+      notify: Reload vault stack
+
+    - name: Render vault.hcl from Terraform outputs
+      ansible.builtin.template:
+        src: vault.hcl.j2
+        dest: /opt/vault/config/vault.hcl
+        owner: ubuntu
+        group: ubuntu
+        mode: "0640"
+      notify: Reload vault stack
+
+    - name: Render Caddyfile
+      ansible.builtin.template:
+        src: Caddyfile.j2
+        dest: /opt/vault/Caddyfile
+        owner: ubuntu
+        group: ubuntu
+        mode: "0640"
+      notify: Reload vault stack
+
+    - name: Install systemd unit for the stack
+      ansible.builtin.template:
+        src: vault-docker.service.j2
+        dest: /etc/systemd/system/vault.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Install snapshot backup script
+      ansible.builtin.template:
+        src: vault-snapshot.sh.j2
+        dest: /usr/local/bin/vault-snapshot.sh
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install snapshot service + timer
+      ansible.builtin.template:
+        src: "{{ item }}"
+        dest: "/etc/systemd/system/{{ item | basename | regex_replace('\\.j2$', '') }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - vault-snapshot.service.j2
+        - vault-snapshot.timer.j2
+      notify: Reload systemd
+
+    - name: Flush handlers before enabling services
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the Vault stack
+      ansible.builtin.systemd:
+        name: vault.service
+        enabled: true
+        state: started
+
+    - name: Enable the daily snapshot timer
+      ansible.builtin.systemd:
+        name: vault-snapshot.timer
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Reload vault stack
+      ansible.builtin.systemd:
+        name: vault.service
+        state: reloaded
+      failed_when: false
