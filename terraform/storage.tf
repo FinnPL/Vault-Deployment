@@ -45,7 +45,7 @@ resource "oci_objectstorage_object_lifecycle_policy" "backups" {
     name        = "purge-old-versions-after-7d"
     action      = "DELETE"
     is_enabled  = true
-    target      = "object-versions"
+    target      = "previous-object-versions"
     time_amount = 7
     time_unit   = "DAYS"
   }
