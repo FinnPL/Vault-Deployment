@@ -6,8 +6,6 @@ services:
     command: ["vault", "server", "-config=/vault/config/vault.hcl"]
     cap_add:
       - IPC_LOCK # allow mlock so secrets are not swapped to disk
-    # IPC_LOCK alone isn't enough: the container's default memlock ulimit is 8 KB,
-    # so mlock fails with ENOMEM. Raise it so Vault can lock its memory.
     ulimits:
       memlock: -1
     environment:

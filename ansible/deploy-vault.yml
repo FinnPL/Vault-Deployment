@@ -32,9 +32,6 @@
 
   tasks:
     - name: Ensure app directories exist
-      # config is 0755 so the in-container vault user (uid 100, an "other" vs the
-      # host ubuntu owner) can traverse it to read vault.hcl. data stays 0750 —
-      # it holds encrypted raft state and is owned by the container's uid anyway.
       ansible.builtin.file:
         path: "{{ item.path }}"
         state: directory
@@ -56,9 +53,6 @@
       notify: Reload vault stack
 
     - name: Render vault.hcl from Terraform outputs
-      # 0644: readable by the in-container vault user (uid 100). Safe — vault.hcl
-      # holds only the KMS key OCID + public endpoints, no credentials (auth is
-      # via instance principal).
       ansible.builtin.template:
         src: vault.hcl.j2
         dest: /opt/vault/config/vault.hcl
