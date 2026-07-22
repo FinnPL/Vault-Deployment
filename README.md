@@ -66,4 +66,3 @@ After creating a real auth method + policies, revoke the root token:
 Renovate opens PRs bumping the pinned image tags in `app/docker-compose.yml`.
 Merging to `main` re-runs the pipeline; Ansible's `ExecReload` recreates only the
 changed container, which reloads raft and auto-unseals.
-```
