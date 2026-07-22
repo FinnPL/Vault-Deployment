@@ -1,0 +1,55 @@
+services:
+  vault:
+    image: hashicorp/vault:1.18.5
+    container_name: vault
+    restart: unless-stopped
+    command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+    cap_add:
+      - IPC_LOCK # allow mlock so secrets are not swapped to disk
+    environment:
+      VAULT_ADDR: "http://127.0.0.1:8200"
+    volumes:
+      - ./config:/vault/config:ro
+      - ./data:/vault/file
+    networks:
+      - vault
+    healthcheck:
+      # 200 unsealed+active, 429 unsealed+standby, 501 not initialised, 503 sealed
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8200/v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: caddy
+    restart: unless-stopped
+    depends_on:
+      - vault
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - vault
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  vault:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
