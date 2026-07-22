@@ -1,6 +1,6 @@
 services:
   vault:
-    image: hashicorp/vault:1.18.5
+    image: hashicorp/vault:1.21.4
     container_name: vault
     restart: unless-stopped
     command: ["vault", "server", "-config=/vault/config/vault.hcl"]
