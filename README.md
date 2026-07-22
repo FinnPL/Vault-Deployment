@@ -18,7 +18,7 @@ Declarative, GitOps deployment of HashiCorp Vault on an OCI ARM VM.
 
 ## Setup
 
-### 1. Initialise Vault (once)
+### 1. Initialise Vault
 Auto-unseal handles every reboot after this, but init is manual so recovery
 material never touches CI logs.
 
