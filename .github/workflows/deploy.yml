@@ -1,0 +1,136 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vault-deploy
+  cancel-in-progress: false
+
+env:
+  # OCI auth for Terraform
+  TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+  TF_VAR_user_ocid: ${{ secrets.OCI_USER_OCID }}
+  TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+  TF_VAR_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+  TF_VAR_compartment_ocid: ${{ secrets.OCI_COMPARTMENT_OCID }}
+  # Cloudflare
+  TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  # Instance access
+  TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+  # S3 backend (OCI Object Storage Customer Secret Keys)
+  AWS_ACCESS_KEY_ID: ${{ secrets.STATE_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.STATE_SECRET_ACCESS_KEY }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6.3.0
+        with:
+          tflint_version: v0.54.0
+
+      - name: tflint
+        working-directory: terraform
+        run: |
+          tflint --init
+          tflint -f compact
+
+      - name: ansible-lint
+        working-directory: ansible
+        run: |
+          pipx install ansible-lint
+          ansible-lint
+
+  terraform:
+    needs: lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    outputs:
+      public_ip: ${{ steps.out.outputs.public_ip }}
+      domain: ${{ steps.out.outputs.domain }}
+      kms_key_id: ${{ steps.out.outputs.kms_key_id }}
+      kms_crypto_endpoint: ${{ steps.out.outputs.kms_crypto_endpoint }}
+      kms_management_endpoint: ${{ steps.out.outputs.kms_management_endpoint }}
+      backup_bucket: ${{ steps.out.outputs.backup_bucket }}
+      objectstorage_namespace: ${{ steps.out.outputs.objectstorage_namespace }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.10.5
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: terraform apply -input=false tfplan
+
+      - name: Export outputs
+        id: out
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          for k in public_ip domain kms_key_id kms_crypto_endpoint \
+                   kms_management_endpoint backup_bucket objectstorage_namespace; do
+            echo "$k=$(terraform output -raw $k)" >> "$GITHUB_OUTPUT"
+          done
+
+  ansible:
+    needs: terraform
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ansible
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Ansible
+        run: pipx install --include-deps ansible
+
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Write inventory
+        run: |
+          cat > inventory.ini <<EOF
+          [vault]
+          ${{ needs.terraform.outputs.public_ip }}
+          [vault:vars]
+          ansible_user=ubuntu
+          ansible_ssh_private_key_file=~/.ssh/id_ed25519
+          EOF
+
+      - name: Deploy
+        run: |
+          ansible-playbook -i inventory.ini deploy-vault.yml \
+            -e domain='${{ needs.terraform.outputs.domain }}' \
+            -e kms_key_id='${{ needs.terraform.outputs.kms_key_id }}' \
+            -e kms_crypto_endpoint='${{ needs.terraform.outputs.kms_crypto_endpoint }}' \
+            -e kms_management_endpoint='${{ needs.terraform.outputs.kms_management_endpoint }}' \
+            -e backup_bucket='${{ needs.terraform.outputs.backup_bucket }}' \
+            -e objectstorage_namespace='${{ needs.terraform.outputs.objectstorage_namespace }}'
