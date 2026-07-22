@@ -19,6 +19,7 @@
       ansible.builtin.command: cloud-init status --long
       register: cloudinit_long
       changed_when: false
+      failed_when: false
       when: cloudinit.rc == 2
 
     - name: Report cloud-init degradation (non-fatal)

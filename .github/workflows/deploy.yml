@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      replace_instance:
+        description: "Recreate the Vault VM"
+        type: boolean
+        default: false
 
 concurrency:
   group: vault-deploy
@@ -81,7 +86,12 @@ jobs:
         run: terraform validate
 
       - name: Plan
-        run: terraform plan -input=false -out=tfplan
+        run: |
+          REPLACE=""
+          if [ "${{ github.event.inputs.replace_instance }}" = "true" ]; then
+            REPLACE="-replace=oci_core_instance.vault"
+          fi
+          terraform plan -input=false $REPLACE -out=tfplan
 
       - name: Apply
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
