@@ -9,8 +9,13 @@ storage "raft" {
 listener "tcp" {
   address                            = "0.0.0.0:8200"
   tls_disable                        = true
-  x_forwarded_for_authorized_addrs   = "0.0.0.0/0"
-  x_forwarded_for_reject_not_present = false
+  x_forwarded_for_authorized_addrs   = ["172.28.0.0/24"]
+  x_forwarded_for_reject_not_present = true
+}
+
+listener "tcp" {
+  address     = "127.0.0.1:8202"
+  tls_disable = true
 }
 
 seal "ocikms" {

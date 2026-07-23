@@ -9,7 +9,7 @@ services:
     ulimits:
       memlock: -1
     environment:
-      VAULT_ADDR: "http://127.0.0.1:8200"
+      VAULT_ADDR: "http://127.0.0.1:8202"
     volumes:
       - ./config:/vault/config:ro
       - ./data:/vault/file
@@ -17,7 +17,7 @@ services:
       - vault
     healthcheck:
       # 200 unsealed+active, 429 unsealed+standby, 501 not initialised, 503 sealed
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8200/v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8202/v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -34,7 +34,6 @@ services:
     depends_on:
       - vault
     ports:
-      - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -51,6 +50,9 @@ services:
 networks:
   vault:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
 
 volumes:
   caddy_data:

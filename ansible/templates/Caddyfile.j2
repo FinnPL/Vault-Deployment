@@ -1,3 +1,11 @@
+{
+	auto_https disable_redirects
+
+	cert_issuer acme {
+		disable_http_challenge
+	}
+}
+
 {{ domain }} {
 	encode zstd gzip
 
