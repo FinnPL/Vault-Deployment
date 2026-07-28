@@ -50,7 +50,7 @@ path "sys/storage/raft/snapshot" { capabilities = ["read"] }
 EOF
 
 sudo docker compose exec -T vault \
-  vault token create -policy=backup -period=768h -field=token \
+  vault token create -policy=backup -period=768h -orphan -field=token \
   | sudo install -m600 /dev/stdin /etc/vault-backup/token
 
 # verify
@@ -58,11 +58,27 @@ sudo systemctl start vault-snapshot.service
 oci os object list --bucket-name vault-backups --auth instance_principal
 ```
 
+`-orphan` matters: token revocation in Vault cascades to children, so a backup
+token created as a child of the root token dies the moment you do step 4 — and
+the snapshot timer then fails silently every night. An orphan token has no
+parent to be revoked with. It still needs renewing within its 768h period,
+which `vault-snapshot.sh` does on every run.
+
+This token is **not** in Git or GitHub Actions — Ansible never touches
+`/etc/vault-backup/token`. Rotating it is a manual step on the host.
+
 Restore: `docker compose exec vault vault operator raft snapshot restore <file>`
 into a node sealed by the **same** KMS key.
 
 ### 4. Root token hygiene
-After creating a real auth method + policies, revoke the root token:
+After creating a real auth method + policies, revoke the root token. Confirm the
+backup token from step 3 is an orphan first, or this revokes it too:
+
+```bash
+sudo docker compose exec -T -e VAULT_TOKEN="$(sudo cat /etc/vault-backup/token)" \
+  vault vault token lookup -format=json | jq '.data.orphan, .data.ttl'
+```
+
 ```bash
 cd /opt/vault
 sudo docker compose exec vault vault token revoke -self

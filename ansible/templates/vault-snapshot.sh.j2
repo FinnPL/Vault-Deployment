@@ -21,7 +21,7 @@ cd /opt/vault
 docker compose exec -T \
   -e VAULT_ADDR="http://127.0.0.1:8202" \
   -e VAULT_TOKEN="$(cat "$TOKEN_FILE")" \
-  vault vault token renew -self >/dev/null
+  vault vault token renew >/dev/null
 
 docker compose exec -T \
   -e VAULT_ADDR="http://127.0.0.1:8202" \
