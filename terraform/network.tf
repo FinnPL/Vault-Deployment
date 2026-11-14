@@ -36,17 +36,6 @@ resource "oci_core_security_list" "vault" {
   }
 
   ingress_security_rules {
-    protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
-    source_type = "CIDR_BLOCK"
-    description = "SSH"
-    tcp_options {
-      min = 22
-      max = 22
-    }
-  }
-
-  ingress_security_rules {
     protocol    = "6"
     source      = "0.0.0.0/0"
     source_type = "CIDR_BLOCK"
@@ -56,6 +45,13 @@ resource "oci_core_security_list" "vault" {
       max = 443
     }
   }
+}
+
+# SSH is closed by default. The deploy workflow adds a rule for its runner's address here for the length of the Ansible run
+resource "oci_core_network_security_group" "deploy_ssh" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.vault.id
+  display_name   = "vault-deploy-ssh"
 }
 
 resource "oci_core_subnet" "vault" {

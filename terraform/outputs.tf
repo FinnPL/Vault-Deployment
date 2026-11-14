@@ -27,3 +27,8 @@ output "backup_bucket" {
 output "objectstorage_namespace" {
   value = data.oci_objectstorage_namespace.ns.namespace
 }
+
+output "deploy_ssh_nsg_id" {
+  description = "NSG the deploy workflow opens SSH in for its runner"
+  value       = oci_core_network_security_group.deploy_ssh.id
+}

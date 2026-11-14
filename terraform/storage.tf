@@ -7,7 +7,18 @@ resource "oci_objectstorage_bucket" "backups" {
   namespace      = data.oci_objectstorage_namespace.ns.namespace
   name           = "vault-backups"
   access_type    = "NoPublicAccess"
-  versioning     = "Enabled"
+  # Retention rules and versioning exclude each other
+  versioning = "Suspended"
+
+  # Nobody, tenancy admins included, can delete or overwrite a snapshot younger than 30 days.
+  retention_rules {
+    display_name     = "raft-snapshots-30d"
+    time_rule_locked = "2026-11-30T00:00:00Z"
+    duration {
+      time_amount = 30
+      time_unit   = "DAYS"
+    }
+  }
 
   lifecycle {
     prevent_destroy = true

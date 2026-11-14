@@ -32,6 +32,7 @@ resource "oci_core_instance" "vault" {
     subnet_id        = oci_core_subnet.vault.id
     assign_public_ip = true
     hostname_label   = "vault"
+    nsg_ids          = [oci_core_network_security_group.deploy_ssh.id]
   }
 
   metadata = {
