@@ -58,8 +58,34 @@ jobs:
           pipx install ansible-lint
           ansible-lint
 
+  # PRs get no secrets (they live in the main-only environment "vault"), so they only validate.
+  validate:
+    needs: lint
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: v1.17.1
+
+      - name: Init without backend
+        run: terraform init -input=false -backend=false
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Validate
+        run: terraform validate
+
   terraform:
     needs: lint
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: vault
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -72,6 +98,7 @@ jobs:
       kms_management_endpoint: ${{ steps.out.outputs.kms_management_endpoint }}
       backup_bucket: ${{ steps.out.outputs.backup_bucket }}
       objectstorage_namespace: ${{ steps.out.outputs.objectstorage_namespace }}
+      deploy_ssh_nsg_id: ${{ steps.out.outputs.deploy_ssh_nsg_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -97,21 +124,20 @@ jobs:
           terraform plan -input=false $REPLACE -out=tfplan
 
       - name: Apply
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: terraform apply -input=false tfplan
 
       - name: Export outputs
         id: out
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: |
           for k in public_ip domain kms_key_id kms_crypto_endpoint \
-                   kms_management_endpoint backup_bucket objectstorage_namespace; do
+                   kms_management_endpoint backup_bucket objectstorage_namespace deploy_ssh_nsg_id; do
             echo "$k=$(terraform output -raw $k)" >> "$GITHUB_OUTPUT"
           done
 
   ansible:
     needs: terraform
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: vault
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -119,8 +145,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Ansible
-        run: pipx install --include-deps ansible
+      - name: Install Ansible and the OCI CLI
+        run: |
+          pipx install --include-deps ansible
+          pipx install oci-cli
+
+      - name: Configure the OCI CLI
+        run: |
+          mkdir -p ~/.oci && chmod 700 ~/.oci
+          printf '%s\n' "$TF_VAR_private_key" > ~/.oci/key.pem && chmod 600 ~/.oci/key.pem
+          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=eu-frankfurt-1\nkey_file=%s\n' \
+            "$TF_VAR_user_ocid" "$TF_VAR_fingerprint" "$TF_VAR_tenancy_ocid" ~/.oci/key.pem > ~/.oci/config
+          chmod 600 ~/.oci/config
 
       - name: Configure SSH key
         run: |
@@ -138,9 +174,13 @@ jobs:
           ansible_ssh_private_key_file=~/.ssh/id_ed25519
           EOF
 
+      # SSH to the VM is open for this runner only while Ansible runs (scripts/with-ssh.sh).
       - name: Deploy
+        env:
+          VAULT_SSH_NSG: ${{ needs.terraform.outputs.deploy_ssh_nsg_id }}
+          VAULT_VM: ${{ needs.terraform.outputs.public_ip }}
         run: |
-          ansible-playbook -i inventory.ini deploy-vault.yml \
+          ../scripts/with-ssh.sh --clear-stale ansible-playbook -i inventory.ini deploy-vault.yml \
             -e domain='${{ needs.terraform.outputs.domain }}' \
             -e kms_key_id='${{ needs.terraform.outputs.kms_key_id }}' \
             -e kms_crypto_endpoint='${{ needs.terraform.outputs.kms_crypto_endpoint }}' \
