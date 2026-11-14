@@ -26,6 +26,8 @@ env:
   # Cloudflare
   TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  # Security alerts (terraform/alerts.tf)
+  TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
   # Instance access
   TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
   # S3 backend (OCI Object Storage Customer Secret Keys)

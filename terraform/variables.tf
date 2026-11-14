@@ -75,3 +75,9 @@ variable "instance_boot_volume_gbs" {
   default     = 50
   description = "Boot volume size in GB (Always Free budget is 200 total)."
 }
+
+variable "alert_email" {
+  type        = string
+  sensitive   = true
+  description = "Receives the Vault security alerts (alerts.tf). Secret ALERT_EMAIL in the GitHub environment vault, kept out of git."
+}
